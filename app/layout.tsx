@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   title: { default: "One Visit, Proven: an Abby Care concept", template: "%s · One Visit, Proven" },
   description:
     "An unofficial concept by Hafsa Usmani for Abby Care's Product Designer role: one family-led care visit, seen by the caregiver, the clinician and operations, driven by one tested state machine.",
+  metadataBase: new URL("https://one-visit-proven.vercel.app"),
   robots: { index: false, follow: false },
 };
 
