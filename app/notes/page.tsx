@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Notes" };
 const DECISIONS: [string, string, string][] = [
   ["Two tracks, not one pipeline", "EVV (did it happen) and documentation (what care was given) run separately and meet at “Care verified”.", "A single linear pipeline where a missing clock-out blocks the note, or a note in review blocks payroll."],
   ["The caregiver signs her own note", "Rosa attests the note in her words; the clinician reviews by exception.", "A nurse co-signing every routine note: slow, and not how aide documentation usually works. Marked as an assumption to check."],
-  ["Escalation runs before any AI", "The seizure plan check is rules, not a model, and it can say “call 911” with the AI switched off.", "Letting the AI decide whether something is urgent."],
+  ["The seizure check runs on taps, with no AI", "It runs on Rosa's taps at the moment she logs a seizure: rules, not a model. It works offline with the AI off, and it can say “call 911”.", "Letting the AI decide whether something is urgent, or checking hours later from a transcribed voice note."],
   ["Evidence, not scores", "Dana sees today against Mateo's own baseline, and what's missing.", "Confidence percentages and risk scores, which invite either blind trust or alert fatigue, and label families."],
   ["One status, three labels", "Same state, different words: “Needs a quick fix” for Rosa, “Exception: missing clock-out” for Sam, a code for exports.", "One shared label, which is either too blunt for families or too vague for operations."],
   ["Pay never waits on a claim", "Rosa sees whether her hours count for payroll. Only operations sees claim readiness.", "Showing caregivers billing status, which ties a W-2 paycheck to insurance."],
@@ -28,7 +28,8 @@ export default function NotesPage() {
             ["Clinical", "Where do seizure action plans and baselines live, and who keeps them current?"],
             ["Operations", "How do EVV corrections flow per state and plan, and which aggregators are in play?"],
             ["Compliance", "Live-in exemptions and guardian-as-caregiver verification, program by program."],
-            ["Caregivers", "How much is voice and Spanish used in AbbyAid today, and where do people get stuck?"],
+            ["Caregivers", "How much are voice and Spanish used in the caregiver app today, and where do people get stuck?"],
+            ["Clinical and compliance", "Which care-plan tasks (medicines, G-tube feeds) are in family-caregiver scope, by state and program?"],
             ["Product", "Which AI flags exist now, and what happens to the ones nobody acts on?"],
           ].map(([who, q]) => (
             <li key={q} className="rounded-[20px] bg-cream p-5">
@@ -61,7 +62,7 @@ export default function NotesPage() {
         <ul className="list-disc space-y-1.5 pl-5 leading-6">
           <li>The AI never diagnoses, never closes a flag, never adds a task the caregiver didn&apos;t log, and never touches clock times, billing or the plan of care.</li>
           <li>EVV captures the six facts the 21st Century Cures Act requires: type of service, member, caregiver, date, location, and start and end time. Location is captured at clock-in and clock-out, never tracked.</li>
-          <li>Original EVV records never change. Corrections are stored beside them with a reason code, requester and approver. Nothing has a delete button.</li>
+          <li>Nothing is ever deleted. Cancellations, voids and resubmissions are new events with a reason code, requester and approver, and the original stays readable.</li>
           <li>While a member is in the hospital, visits are cancelled with a reason, and restarting needs a clinician&apos;s reassessment.</li>
           <li>No real people, IDs or payer logos. Abby&apos;s own published figures aren&apos;t used as demo output.</li>
         </ul>
@@ -90,6 +91,7 @@ export default function NotesPage() {
               <li>Caregiver certification lapsing</li>
               <li>Aggregator rejection and resubmission</li>
               <li>Supervisory visit or recertification coming due</li>
+              <li>Aide time during another provider&apos;s billed service</li>
             </ul>
           </div>
         </div>
@@ -115,8 +117,8 @@ export default function NotesPage() {
           <li>Research agents read Abby Care&apos;s site, the role, the app listing and public interviews in parallel.</li>
           <li>Fonts, colours, buttons and card shapes were measured from abbycare.org&apos;s computed styles.</li>
           <li>
-            A six-seat review panel (CEO, Head of Product, an RN case manager, a family caregiver, a Medicaid compliance lead and a skeptic) critiqued the plan. It caught a nurse co-signing every note,
-            fraud-first framing, and pay tied to claims. All three were fixed.
+            An AI review panel with six perspectives (an RN case manager, a family caregiver, a Medicaid compliance lead, an operations lead, a product lead and a skeptic) critiqued the plan, then the
+            build. It caught a nurse co-signing every note, fraud-first framing, pay tied to claims, and a seizure check that ran hours late. I fixed all of them.
           </li>
           <li>Built in code with Claude Code. The workflow, the decisions and the voice are mine.</li>
         </ul>
@@ -128,6 +130,7 @@ export default function NotesPage() {
           <li>Real: abbycare.org&apos;s type, colours, buttons, card shapes and logo.</li>
           <li>Illustrative: Rosa, Mateo, Dana and Sam; the visit; state rules, reason codes and seizure thresholds; the AI draft, which is scripted here.</li>
           <li>Assumed: the clinician role is an RN case manager, and how notes are signed off varies by program.</li>
+          <li>Assumed: hours already worked are paid on payday even if the member is hospitalized; EVV is captured on every visit even where a live-in exemption exists.</li>
         </ul>
       </Section>
     </div>

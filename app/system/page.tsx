@@ -92,7 +92,7 @@ export default function SystemPage() {
           ))}
         </div>
         <p className="mt-3 text-[14px] leading-6 text-muted">
-          There is no delete or void event on either track. Original EVV captures never change; a correction is a new state with its own reason, requester and approver. A signed note only takes dated addenda.
+          Nothing is ever deleted. Original EVV captures never change; a correction, cancellation or resubmission is a new event with its own reason, requester and approver, and the original stays readable. A signed note only takes dated addenda.
         </p>
       </Section>
 
@@ -186,8 +186,8 @@ export default function SystemPage() {
                 <dd>{r.graceMinutes} min</dd>
                 <dt className="text-muted">Window to request a fix</dt>
                 <dd>{r.correctionWindowDays} days</dd>
-                <dt className="text-muted">Live-in caregivers exempt from EVV</dt>
-                <dd>{r.liveInExempt ? "Yes" : "No"}</dd>
+                <dt className="text-muted">Live-in exemption available</dt>
+                <dd>{r.liveInExempt ? "Yes, not applied" : "No"}</dd>
               </dl>
               <p className="mt-3 text-[13px] font-medium">Reason codes · what Rosa taps → what the state receives</p>
               <ul className="mt-1 space-y-1 text-[13px]">

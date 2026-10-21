@@ -91,15 +91,16 @@ export type GuardContext = {
   inpatient?: boolean;
   /** AI draft lines with no source in the caregiver's own words, not yet edited. */
   unsupportedLines?: number;
-  requestedBy?: Actor;
-  approvedBy?: Actor;
+  /** People, not roles: two operations staff can review each other's requests. */
+  requestedById?: string;
+  approvedById?: string;
   reasonCode?: string;
 };
 
 export const GUARD_COPY: Record<GuardId, string> = {
   not_inpatient: "Visits are on hold while the member is in the hospital.",
   all_lines_supported: "Every line in the note has to come from what the caregiver said or typed.",
-  not_own_correction: "No one approves their own correction.",
+  not_own_correction: "No one approves a correction they requested.",
   reason_code: "A reason code is required.",
 };
 
@@ -107,7 +108,7 @@ function failedGuard(guards: GuardId[] = [], ctx: GuardContext): GuardId | null 
   for (const g of guards) {
     if (g === "not_inpatient" && ctx.inpatient) return g;
     if (g === "all_lines_supported" && (ctx.unsupportedLines ?? 0) > 0) return g;
-    if (g === "not_own_correction" && ctx.requestedBy && ctx.requestedBy === ctx.approvedBy) return g;
+    if (g === "not_own_correction" && (!ctx.approvedById || ctx.requestedById === ctx.approvedById)) return g;
     if (g === "reason_code" && !ctx.reasonCode) return g;
   }
   return null;
@@ -138,9 +139,16 @@ export type VisitFacts = {
   inpatient: boolean;
   authMatched: boolean;
   unitsRemaining: number;
+  /** 15-minute units this visit uses. */
+  visitUnits: number;
 };
 
-const EVV_OK: EvvState[] = ["confirmed", "correction_approved", "sent", "accepted"];
+/*
+ * Care is verified once the visit's times are settled and the note is closed.
+ * Aggregator outcomes (including a rejection) are a billing matter, so they
+ * never un-verify care for the family or the clinician.
+ */
+const EVV_OK: EvvState[] = ["confirmed", "correction_approved", "sent", "accepted", "rejected"];
 const DOC_OK: DocState[] = ["complete"];
 
 /** Shared with the family and the clinician. Payer status is never part of it. */
@@ -154,9 +162,14 @@ export type Blocker = { id: string; label: string; ok: boolean; detail: string }
 export function claimBlockers(v: VisitFacts): Blocker[] {
   return [
     { id: "evv", label: "Visit accepted by the state EVV aggregator", ok: v.evv === "accepted", detail: v.evv === "accepted" ? "Accepted" : `EVV is “${STATUS[v.evv].operator}”` },
-    { id: "doc", label: "Documentation attested and closed", ok: v.doc === "complete", detail: v.doc === "complete" ? "Attested by caregiver; flag closed by clinician" : `Documentation is “${STATUS[v.doc].operator}”` },
+    { id: "doc", label: "Documentation attested and closed", ok: v.doc === "complete", detail: v.doc === "complete" ? "Signed by the caregiver; any clinician review closed" : `Documentation is “${STATUS[v.doc].operator}”` },
     { id: "auth", label: "Matches an active authorization", ok: v.authMatched, detail: v.authMatched ? "Home health aide, current period" : "No matching authorization" },
-    { id: "units", label: "Authorized units remain", ok: v.unitsRemaining > 0, detail: `${v.unitsRemaining} units left this period (illustrative)` },
+    {
+      id: "units",
+      label: "Enough authorized units remain",
+      ok: v.unitsRemaining >= v.visitUnits,
+      detail: `This visit: ${v.visitUnits} units · ${v.unitsRemaining} remaining → ${v.unitsRemaining - v.visitUnits} after this visit (illustrative)`,
+    },
     { id: "inpatient", label: "Member wasn't in the hospital", ok: !v.inpatient, detail: v.inpatient ? "Member inpatient on this date" : "No inpatient stay on this date" },
   ];
 }
@@ -187,8 +200,8 @@ export const STATUS: Record<Status, Vocab> = {
   correction_approved: { caregiver: "Fix approved", clinician: "Correction approved", operator: "Correction approved", code: "EVV_CORR_APPROVED", tone: "success" },
   sent: { caregiver: "Hours counted", clinician: "Visit confirmed", operator: "Sent to aggregator", code: "EVV_SUBMITTED", tone: "progress" },
   accepted: { caregiver: "Hours counted", clinician: "Visit confirmed", operator: "Accepted by aggregator", code: "EVV_ACCEPTED", tone: "success" },
-  rejected: { caregiver: "We're fixing something", clinician: "Visit confirmed", operator: "Rejected by aggregator", code: "EVV_REJECTED", tone: "danger" },
-  cancelled: { caregiver: "Not needed today", clinician: "Cancelled: inpatient", operator: "Cancelled (member inpatient)", code: "EVV_CANCELLED_INPATIENT", tone: "neutral" },
+  rejected: { caregiver: "Hours counted", clinician: "Visit confirmed", operator: "Rejected by aggregator", code: "EVV_REJECTED", tone: "danger" },
+  cancelled: { caregiver: "No visit while in the hospital", clinician: "Cancelled: inpatient", operator: "Cancelled (member inpatient)", code: "EVV_CANCELLED_INPATIENT", tone: "neutral" },
   on_hold: { caregiver: "Visits paused", clinician: "On hold: inpatient", operator: "On hold (inpatient)", code: "VISIT_ON_HOLD", tone: "attention" },
   logging: { caregiver: "Add today's notes", clinician: "Notes in progress", operator: "Notes in progress", code: "DOC_LOGGING", tone: "neutral" },
   ai_draft: { caregiver: "Check your note", clinician: "Awaiting caregiver", operator: "Awaiting caregiver", code: "DOC_DRAFT", tone: "progress" },

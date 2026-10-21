@@ -1,17 +1,18 @@
 import Link from "next/link";
 import { StateDiagram } from "@/components/state-diagram";
 import { btn, Icon, IconDot, Pill } from "@/components/ui";
+import { ProofLinks } from "@/components/visit-player";
 
 const CAST = [
   { tone: "bg-blue", who: "Rosa", role: "Family caregiver · mobile", line: "Mateo's mom and his paid caregiver. Taps first, voice second, Spanish one tap away. Her screen is about her hours and her son, never about suspicion." },
-  { tone: "bg-cream", who: "Dana", role: "Clinician · web", line: "Reviews by exception. Only changes against Mateo's own baseline reach her, each with the evidence and how soon it needs her." },
+  { tone: "bg-cream", who: "Dana", role: "Clinician · web", line: "Reviews by exception. Changes against Mateo's own pattern reach her with the evidence and how soon they need her; routine notes go to his chart." },
   { tone: "bg-yellow", who: "Sam", role: "Care operations · web", line: "Approves EVV fixes he didn't ask for, sees what stands between a visit and a claim, and can prove all of it later." },
 ];
 
 const UNDER = [
-  { icon: "doc" as const, title: "The lifecycle is config", body: "One TypeScript state machine drives the diagram, every status chip and the scenario. Tests prove the rules." },
+  { icon: "doc" as const, title: "The lifecycle is config", body: "One TypeScript state machine drives the diagram, every status chip and the scenario. Tests check every rule." },
   { icon: "lock" as const, title: "Locks explain themselves", body: "Every control a role can't use says why and who can. Nobody edits clock times; fixes sit beside the original." },
-  { icon: "mic" as const, title: "AI that cites her words", body: "Each line of the note links to what Rosa said or tapped. A line she didn't say blocks signing. Escalation runs before any AI." },
+  { icon: "mic" as const, title: "AI that cites her words", body: "Each line of the note links to what Rosa said or tapped. A line she didn't say blocks signing. The seizure check runs on her taps, with no AI." },
   { icon: "pin" as const, title: "State rules are data", body: "Switch Pennsylvania to Florida and reason codes, fix windows and required fields change without a redesign." },
 ];
 
@@ -44,6 +45,10 @@ export default function Home() {
               See the system
             </Link>
           </div>
+        </div>
+        <div className="lg:col-span-2">
+          <p className="text-[13px] font-semibold uppercase tracking-wide text-muted">Or jump straight to a proof</p>
+          <ProofLinks />
         </div>
       </section>
 

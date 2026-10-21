@@ -6,7 +6,7 @@
  */
 import type { Role } from "./machine";
 
-export type Action = "view" | "edit" | "attest" | "request" | "approve" | "record" | "export";
+export type Action = "view" | "edit" | "attest" | "addend" | "request" | "approve" | "record" | "export";
 
 export type ObjectId = "clock_times" | "visit_note" | "change_flag" | "correction" | "plan_of_care" | "audit_trail" | "claim_status" | "access_log";
 
@@ -23,7 +23,7 @@ export const OBJECTS: { id: ObjectId; name: string }[] = [
 
 export const MATRIX: Record<ObjectId, Partial<Record<Role, Action[]>>> = {
   clock_times: { caregiver: ["view"], clinician: ["view"], operator: ["view"], compliance: ["view"] },
-  visit_note: { caregiver: ["view", "edit", "attest"], clinician: ["view"], operator: ["view"], compliance: ["view"] },
+  visit_note: { caregiver: ["view", "edit", "attest", "addend"], clinician: ["view", "addend"], operator: ["view"], compliance: ["view"] },
   change_flag: { caregiver: ["view"], clinician: ["view", "record"], operator: ["view"], compliance: ["view"] },
   correction: { caregiver: ["view", "request"], clinician: ["view"], operator: ["view", "request", "approve"], compliance: ["view"] },
   plan_of_care: { caregiver: ["view"], clinician: ["view", "edit"], operator: ["view"], compliance: ["view"] },
@@ -36,6 +36,8 @@ export const MATRIX: Record<ObjectId, Partial<Record<Role, Action[]>>> = {
 export const CONDITIONS: Partial<Record<`${ObjectId}:${Role}:${Action}`, string>> = {
   "visit_note:caregiver:edit": "Only while it's a draft. After signing, changes are dated addenda.",
   "visit_note:operator:view": "Status and signature only, not the note's clinical content.",
+  "visit_note:caregiver:addend": "Dated and signed; never changes the original.",
+  "visit_note:clinician:addend": "Dated and signed; never changes the original.",
   "change_flag:caregiver:view": "Sees that Dana reviewed it and what happens next.",
   "change_flag:operator:view": "Status only.",
   "correction:operator:approve": "Never their own request.",
@@ -49,7 +51,7 @@ export function can(role: Role, object: ObjectId, action: Action) {
 }
 
 const REASONS: Partial<Record<`${ObjectId}:${Role}:${Action}`, string>> = {
-  "clock_times:caregiver:edit": "Clock times are recorded the moment you tap, so nobody edits them, including you. If something's off, ask for a fix and someone else reviews it.",
+  "clock_times:caregiver:edit": "Clock times are saved the moment you tap, and nobody can change them, not even you. That keeps your record safe. If something's off, ask for a fix.",
   "clock_times:clinician:edit": "Clinicians don't change visit times. Care operations reviews EVV fixes.",
   "clock_times:operator:edit": "Original EVV records never change. Operations approves a correction, which is stored alongside the original.",
   "correction:clinician:approve": "EVV fixes are an operations decision, not a clinical one.",

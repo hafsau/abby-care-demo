@@ -32,7 +32,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className="mx-auto flex max-w-[1360px] items-center gap-6 px-4 py-3 sm:px-6">
           <Link href="/" className="flex flex-none items-center gap-2.5" aria-label="One Visit, Proven: overview">
             <Image src="/abby-logo.svg" alt="" width={110} height={20} priority />
-            <span className="hidden rounded-full border border-line px-2 py-0.5 text-[12px] font-medium text-muted sm:inline">concept</span>
+            <span className="rounded-full border border-line px-2 py-0.5 text-[12px] font-medium text-muted">concept</span>
           </Link>
           <nav aria-label="Main" className="ml-auto flex min-w-0 items-center gap-1 overflow-x-auto">
             {NAV.map((n) => (

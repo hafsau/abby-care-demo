@@ -14,5 +14,6 @@ export default async function VisitPage({ searchParams }: { searchParams: Promis
     hospital: sp.hospital === "1",
     lang: sp.lang === "es" ? "es" : "en",
   };
-  return <VisitPlayer init={init} />;
+  // Keyed so links to another step (e.g. the proof shortcuts) start fresh at that step.
+  return <VisitPlayer key={JSON.stringify(init)} init={init} />;
 }

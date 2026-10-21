@@ -7,7 +7,21 @@ export type Evidence = { label: string; today: string; usual: string; above: boo
  * baseline, what's missing, and the source. No risk score, no percentage.
  * It stays open until a clinician records an outcome.
  */
-export function EvidenceFlag({ title, evidence, missing, source, status }: { title: string; evidence: Evidence[]; missing: string[]; source: string; status: "open" | "closed" }) {
+export function EvidenceFlag({
+  title,
+  evidence,
+  missing,
+  source,
+  status,
+  usualLabel = "His usual",
+}: {
+  title: string;
+  evidence: Evidence[];
+  missing: string[];
+  source: string;
+  status: "open" | "closed";
+  usualLabel?: string;
+}) {
   return (
     <section aria-label={title} className={`rounded-[16px] border p-4 ${status === "open" ? "border-gold bg-yellow/50" : "border-line bg-white"}`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -27,7 +41,7 @@ export function EvidenceFlag({ title, evidence, missing, source, status }: { tit
               Today
             </th>
             <th scope="col" className="pb-1 font-medium">
-              His usual
+              {usualLabel}
             </th>
           </tr>
         </thead>

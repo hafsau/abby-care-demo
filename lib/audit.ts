@@ -20,6 +20,8 @@ export type AuditEntry = {
   code?: string;
   /** Whether the AI was involved, and how. */
   ai?: "drafted" | "translated";
+  /** Clinical content: shown in full to clinicians and compliance, redacted for operations. */
+  clinical?: boolean;
 };
 
 export type AuditLog = readonly AuditEntry[];

@@ -1,10 +1,17 @@
 import type { AuditEntry } from "@/lib/audit";
+import type { Role } from "@/lib/machine";
 
 const ACTOR: Record<AuditEntry["actor"], string> = { caregiver: "Caregiver", clinician: "Clinician", operator: "Operations", compliance: "Compliance", system: "System" };
 
-/** Append-only. Corrections and edits are new entries with before and after; nothing is overwritten. */
-export function AuditTimeline({ entries, newest = "last", compact = false }: { entries: readonly AuditEntry[]; newest?: "first" | "last"; compact?: boolean }) {
-  const list = newest === "first" ? [...entries].reverse() : entries;
+/**
+ * Append-only. Corrections and edits are new entries with before and after;
+ * nothing is overwritten. Operations sees who, when and what for clinical
+ * entries, but not their content (minimum necessary).
+ */
+export function AuditTimeline({ entries, newest = "last", compact = false, viewer = "compliance" }: { entries: readonly AuditEntry[]; newest?: "first" | "last"; compact?: boolean; viewer?: Role }) {
+  const list = (newest === "first" ? [...entries].reverse() : entries).map((e) =>
+    viewer === "operator" && e.clinical ? { ...e, detail: undefined, before: undefined, after: undefined, redacted: true } : { ...e, redacted: false },
+  );
   return (
     <ol className="relative space-y-3 border-l border-line pl-4" aria-label="Audit trail">
       {list.map((e) => (
@@ -36,6 +43,7 @@ export function AuditTimeline({ entries, newest = "last", compact = false }: { e
               )}
             </p>
           )}
+          {e.redacted && <p className="text-[12px] italic text-muted">Clinical detail visible to clinicians and compliance</p>}
           {e.code && !compact && <p className="font-mono text-[12px] text-muted">{e.code}</p>}
         </li>
       ))}

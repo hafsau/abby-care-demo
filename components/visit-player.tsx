@@ -1,10 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { careVerified } from "@/lib/machine";
-import type { StateCode } from "@/lib/rules";
-import { caregiverFixesLine, inpatientWorld, replay, STEPS, type World } from "@/lib/scenario";
+import Link from "next/link";
+import { careVerified, claimReady } from "@/lib/machine";
+import { RULES, type StateCode } from "@/lib/rules";
+import { AT, caregiverFixesLine, inpatientWorld, recordOutcome, replay, STEPS, type World } from "@/lib/scenario";
 import { AuditTimeline } from "./system/audit-timeline";
 import { CaregiverPhone, type Lang } from "./surfaces/caregiver-phone";
 import { ClinicianView } from "./surfaces/clinician-view";
@@ -18,7 +18,6 @@ export type PlayerInit = { step: number; state: StateCode; view: View; hospital:
 const ROLE_OF: Record<string, string> = { caregiver: "Rosa", clinician: "Dana", operator: "Sam", system: "System" };
 
 export function VisitPlayer({ init }: { init: PlayerInit }) {
-  const router = useRouter();
   const [i, setI] = useState(init.step);
   const [state, setState] = useState<StateCode>(init.state);
   const [hospital, setHospital] = useState(init.hospital);
@@ -39,13 +38,15 @@ export function VisitPlayer({ init }: { init: PlayerInit }) {
     if (hospital) q.set("hospital", "1");
     if (lang !== "en") q.set("lang", lang);
     const s = q.toString();
-    router.replace(s ? `/visit?${s}` : "/visit", { scroll: false });
-  }, [i, state, view, hospital, lang, router]);
+    // History API, not router.replace: keeps the URL shareable without a server round-trip or a remount.
+    window.history.replaceState(null, "", s ? `/visit?${s}` : "/visit");
+  }, [i, state, view, hospital, lang]);
 
-  function go(n: number) {
+  /** Move to step n. One step forward applies that step to the current world, keeping anything done by hand. */
+  function go(n: number, apply?: (w: World) => World) {
     const target = Math.max(0, Math.min(STEPS.length, n));
     setHospital(false);
-    setWorld(target === i + 1 && !hospital ? STEPS[i].apply(world) : replay(target, state));
+    setWorld(target === i + 1 && !hospital ? (apply ?? STEPS[i].apply)(world) : replay(target, state));
     setI(target);
     const focus = STEPS[target - 1]?.focus;
     if (follow && focus && focus !== "caregiver") setView(focus);
@@ -54,7 +55,7 @@ export function VisitPlayer({ init }: { init: PlayerInit }) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const el = e.target as HTMLElement;
-      if (el.closest("input, textarea, select, [contenteditable]")) return;
+      if (el.closest("input, textarea, select, [contenteditable], [role=tab], [role=tablist]")) return;
       if (e.key === "ArrowRight") go(i + 1);
       if (e.key === "ArrowLeft") go(i - 1);
     }
@@ -101,6 +102,10 @@ export function VisitPlayer({ init }: { init: PlayerInit }) {
           </label>
         </div>
       </div>
+      <p className="mt-2 text-[13px] text-muted" aria-live="polite">
+        {RULES[state].name} (illustrative): {RULES[state].correctionWindowDays}-day fix window · codes {RULES[state].reasonCodes.map((r) => r.code).join(", ")}
+        {state === "FL" ? " · note also needs task codes" : ""}
+      </p>
 
       <section aria-label="Scenario" className="mt-6 rounded-[20px] bg-cream p-4 sm:p-5">
         {hospital ? (
@@ -117,13 +122,9 @@ export function VisitPlayer({ init }: { init: PlayerInit }) {
             <ol className="flex gap-1.5 overflow-x-auto pb-1" aria-label="Steps">
               {STEPS.map((s, k) => (
                 <li key={s.id} className="flex-none">
-                  <button
-                    type="button"
-                    onClick={() => go(k + 1)}
-                    aria-current={k + 1 === i ? "step" : undefined}
-                    aria-label={`Step ${k + 1}: ${s.title}`}
-                    className={`h-2.5 w-8 rounded-full sm:w-11 ${k < i ? "bg-navy" : "bg-white"} ${k + 1 === i ? "ring-2 ring-gold ring-offset-2 ring-offset-cream" : ""}`}
-                  />
+                  <button type="button" onClick={() => go(k + 1)} aria-current={k + 1 === i ? "step" : undefined} aria-label={`Step ${k + 1}: ${s.title}`} className="flex h-6 items-center px-0.5">
+                    <span className={`block h-2.5 w-7 rounded-full sm:w-10 ${k < i ? "bg-navy" : "bg-white"} ${k + 1 === i ? "ring-2 ring-gold ring-offset-2 ring-offset-cream" : ""}`} />
+                  </button>
                 </li>
               ))}
             </ol>
@@ -134,11 +135,13 @@ export function VisitPlayer({ init }: { init: PlayerInit }) {
                 </p>
                 <p className="display mt-1 text-[28px]">{i === 0 ? "Tuesday morning. Rosa is about to start." : STEPS[i - 1].title}</p>
                 <p className="mt-2 max-w-3xl text-[15px] leading-6">
-                  {i === 0 ? "Press Next, or act on the screens yourself: Rosa's buttons, Dana's form and Sam's approval all move the story forward." : STEPS[i - 1].narration}
+                  {i === 0 ? "Press Next, or act on the screens yourself: Rosa's buttons, Dana's form and Sam's approval all move the story on. Or jump straight to a proof:" : STEPS[i - 1].narration}
                 </p>
+                {i === 0 && <ProofLinks />}
                 {verified && (
                   <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-ok-bg px-3 py-1 text-[14px] font-medium text-ok-ink">
-                    <Icon name="check" className="h-4 w-4" /> Care verified for Rosa and Dana · claim-ready for operations
+                    <Icon name="check" className="h-4 w-4" /> Care verified for Rosa and Dana
+                    {claimReady(world) ? " · claim-ready for operations" : " · operations is waiting on the aggregator"}
                   </p>
                 )}
               </div>
@@ -182,7 +185,7 @@ export function VisitPlayer({ init }: { init: PlayerInit }) {
                 [
                   ["clinician", "Dana · clinician"],
                   ["operator", "Sam · operations"],
-                  ["audit", "Audit trail"],
+                  ["audit", "Audit trail · compliance view"],
                 ] as [View, string][]
               ).map(([id, label]) => (
                 <button
@@ -204,11 +207,11 @@ export function VisitPlayer({ init }: { init: PlayerInit }) {
             </label>
           </div>
           <div id="view-panel" role="tabpanel" aria-labelledby={`tab-${view}`} className="mt-3">
-            {view === "clinician" && <ClinicianView world={world} last={last} canAdvance={nextStep?.actor === "clinician"} onAdvance={() => go(i + 1)} />}
+            {view === "clinician" && <ClinicianView world={world} last={last} canAdvance={nextStep?.actor === "clinician"} onOutcome={(o) => go(i + 1, (w) => recordOutcome(w, o))} />}
             {view === "operator" && <OperatorView world={world} canAdvance={nextStep?.actor === "operator"} onAdvance={() => go(i + 1)} />}
             {view === "audit" && (
               <div className="rounded-[20px] border border-line bg-white p-5">
-                <p className="font-semibold">Audit trail · newest first</p>
+                <p className="font-semibold">Audit trail · compliance view (read-only), newest first</p>
                 <p className="mb-4 text-[13px] text-muted">Append-only. Every edit, correction and AI action is a new entry with who, when and what changed.</p>
                 <AuditTimeline entries={world.audit} newest="first" />
               </div>
@@ -217,5 +220,29 @@ export function VisitPlayer({ init }: { init: PlayerInit }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** The strongest moments, one click away, so nobody has to press Next eight times to see them. */
+export const PROOFS: { label: string; href: string }[] = [
+  { label: "An AI line she didn't say blocks signing", href: `/visit?step=${AT.draft}` },
+  { label: "Nobody edits clock times", href: `/visit?step=${AT["phone-died"]}` },
+  { label: "The seizure check runs on taps, not AI", href: `/visit?step=${AT.seizure}` },
+  { label: "The nurse decides, not the routing", href: `/visit?step=${AT.attest}` },
+  { label: "Billing is operations-only", href: `/visit?step=${AT.accepted}&view=operator` },
+  { label: "Edge case: hospital stay", href: "/visit?hospital=1" },
+];
+
+export function ProofLinks() {
+  return (
+    <ul className="mt-3 flex flex-wrap gap-2" aria-label="Jump to a proof">
+      {PROOFS.map((p) => (
+        <li key={p.href}>
+          <Link href={p.href} className="inline-flex items-center gap-1 rounded-full border border-navy bg-white px-3 py-1.5 text-[13px] font-medium hover:bg-blue-soft">
+            {p.label} <Icon name="arrow" className="h-3.5 w-3.5" />
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }

@@ -5,7 +5,7 @@ import { triage } from "@/lib/escalation";
 import { careVerified, check, claimBlockers, claimReady, DOC, EVV, STATUS, step } from "@/lib/machine";
 import { can, explain, MATRIX } from "@/lib/permissions";
 import { reasonFor, RULES } from "@/lib/rules";
-import { inpatientWorld, replay, STEPS } from "@/lib/scenario";
+import { AT, inpatientWorld, recordOutcome, replay, SCRIPTED_OUTCOME, STEPS } from "@/lib/scenario";
 
 describe("EVV track", () => {
   it("allows the happy path", () => {
@@ -18,15 +18,19 @@ describe("EVV track", () => {
   it("blocks clock-in while the member is in the hospital", () => {
     expect(check(EVV, "scheduled", "clock_in", "caregiver", { inpatient: true })).toEqual({ ok: false, reason: expect.stringContaining("hospital") });
   });
-  it("only operations approves a correction, never their own, and always with a reason", () => {
-    expect(check(EVV, "correction_requested", "approve_correction", "clinician", { reasonCode: "PA-01" }).ok).toBe(false);
-    expect(check(EVV, "correction_requested", "approve_correction", "caregiver", { reasonCode: "PA-01" }).ok).toBe(false);
-    expect(check(EVV, "correction_requested", "approve_correction", "operator", { requestedBy: "operator", approvedBy: "operator", reasonCode: "PA-01" })).toEqual({
+  it("only operations approves a correction, never a person their own, and always with a reason", () => {
+    const ok = { requestedById: "u-rosa", approvedById: "u-sam", reasonCode: "PA-01" };
+    expect(check(EVV, "correction_requested", "approve_correction", "clinician", ok).ok).toBe(false);
+    expect(check(EVV, "correction_requested", "approve_correction", "caregiver", ok).ok).toBe(false);
+    expect(check(EVV, "correction_requested", "approve_correction", "operator", { ...ok, reasonCode: undefined }).ok).toBe(false);
+    expect(check(EVV, "correction_requested", "approve_correction", "operator", ok).ok).toBe(true);
+  });
+  it("lets one operations person approve another's request, but not their own", () => {
+    expect(check(EVV, "correction_requested", "approve_correction", "operator", { requestedById: "u-sam", approvedById: "u-jo", reasonCode: "PA-04" }).ok).toBe(true);
+    expect(check(EVV, "correction_requested", "approve_correction", "operator", { requestedById: "u-sam", approvedById: "u-sam", reasonCode: "PA-04" })).toEqual({
       ok: false,
-      reason: "No one approves their own correction.",
+      reason: "No one approves a correction they requested.",
     });
-    expect(check(EVV, "correction_requested", "approve_correction", "operator", { requestedBy: "caregiver", approvedBy: "operator" }).ok).toBe(false);
-    expect(check(EVV, "correction_requested", "approve_correction", "operator", { requestedBy: "caregiver", approvedBy: "operator", reasonCode: "PA-01" }).ok).toBe(true);
   });
   it("has no transition that skips verification or deletes a record", () => {
     expect(check(EVV, "clocked_in", "aggregator_accept", "system").ok).toBe(false);
@@ -57,14 +61,24 @@ describe("Documentation track", () => {
   });
 });
 
-describe("escalation runs before AI", () => {
-  it("sends 911 for a long seizure or breathing trouble", () => {
-    expect(triage({ count: 1, longestMinutes: 5, breathingTrouble: false, backToBaseline: true }).level).toBe("emergency");
-    expect(triage({ count: 1, longestMinutes: 1, breathingTrouble: true, backToBaseline: true }).level).toBe("emergency");
+describe("escalation runs on taps, with no AI", () => {
+  const base = { count: 1, minutes: 1, longestMinutes: 1, breathingOk: true, backToUsual: true, rescueGiven: false };
+  it("sends 911 at the plan's threshold, for breathing trouble, or not coming back", () => {
+    expect(triage({ ...base, minutes: 5, longestMinutes: 5 })).toEqual({ level: "emergency", reasons: [{ id: "long", n: 5 }] });
+    expect(triage({ ...base, breathingOk: false }).level).toBe("emergency");
+    expect(triage({ ...base, backToUsual: false }).level).toBe("emergency");
   });
-  it("offers the nurse above baseline, and just logs within it", () => {
-    expect(triage({ count: 3, longestMinutes: 4, breathingTrouble: false, backToBaseline: true }).level).toBe("nurse");
-    expect(triage({ count: 1, longestMinutes: 1, breathingTrouble: false, backToBaseline: true }).level).toBe("log");
+  it("offers the nurse above baseline or after rescue medicine, and just logs within it", () => {
+    expect(triage({ ...base, count: 3, minutes: 4, longestMinutes: 4 }).level).toBe("nurse");
+    expect(triage({ ...base, rescueGiven: true }).level).toBe("nurse");
+    expect(triage(base).level).toBe("log");
+  });
+  it("runs at the seizure, hours before the voice note and the AI draft", () => {
+    expect(AT.seizure).toBeLessThan(AT.voice);
+    const w = replay(AT.seizure);
+    expect(w.triage?.level).toBe("nurse");
+    expect(w.draft).toEqual([]);
+    expect(w.audit.some((a) => a.ai)).toBe(false);
   });
 });
 
@@ -100,15 +114,25 @@ describe("the scenario", () => {
       expect(end.correction?.code).toBe(s === "PA" ? "PA-01" : "VM-10");
     }
   });
-  it("reaches care verified and claim-ready only at the end", () => {
-    const mid = replay(STEPS.findIndex((s) => s.id === "outcome") + 1);
-    expect(careVerified(mid)).toBe(false);
-    const approved = replay(STEPS.findIndex((s) => s.id === "approve") + 1);
+  it("verifies care for the family before it's claim-ready for operations", () => {
+    expect(careVerified(replay(AT.outcome))).toBe(false);
+    const approved = replay(AT.approve);
     expect(careVerified(approved)).toBe(true);
-    expect(claimReady({ ...approved })).toBe(false);
+    expect(claimReady(approved)).toBe(false);
     const end = replay(STEPS.length);
     expect(claimReady(end)).toBe(true);
-    expect(claimBlockers({ ...end, unitsRemaining: 0 }).find((b) => b.id === "units")?.ok).toBe(false);
+    expect(careVerified({ ...end, evv: "rejected" })).toBe(true);
+    expect(claimBlockers({ ...end, unitsRemaining: 40 }).find((b) => b.id === "units")?.ok).toBe(false);
+  });
+  it("records Dana's own choice, and requires a reason only when she changes the suggestion", () => {
+    const routed = replay(AT.attest);
+    expect(routed.flag).toMatchObject({ open: true, suggested: "home_visit" });
+    const kept = recordOutcome(routed, { next: "home_visit", practitionerNotified: true, note: "Visit booked" });
+    expect(kept.audit.at(-2)?.action).toBe("Recorded outcome; kept the suggested next step");
+    expect(() => recordOutcome(routed, { next: "phone_followup", practitionerNotified: true, note: "x" })).toThrow(/reason/);
+    expect(() => recordOutcome(routed, { next: "home_visit", practitionerNotified: false, note: "x" })).toThrow(/practitioner/);
+    const changed = recordOutcome(routed, SCRIPTED_OUTCOME);
+    expect(changed.audit.at(-2)).toMatchObject({ before: "Suggested: Nurse home visit within 24 hours", after: expect.stringContaining("Phone follow-up") });
   });
   it("keeps an append-only trail with before/after for the AI edit and the correction", () => {
     const end = replay(STEPS.length);
@@ -116,7 +140,8 @@ describe("the scenario", () => {
     expect(Object.isFrozen(end.audit)).toBe(true);
     expect(end.audit.find((a) => a.action === "Edited an AI line")).toMatchObject({ before: expect.stringContaining("refused"), after: expect.stringContaining("asleep") });
     expect(end.audit.find((a) => a.action === "Approved EVV correction")).toMatchObject({ before: "No clock-out", after: "7:30 pm", code: "PA-01" });
-    expect(end.audit.find((a) => a.syncedAt)).toBeTruthy();
+    expect(end.audit.find((a) => a.syncedAt)).toMatchObject({ at: "Tue 20:40", syncedAt: "Tue 20:41" });
+    expect(end.audit.find((a) => a.ai === "translated")).toBeTruthy();
     expect(() => (end.audit as unknown as unknown[]).push({})).toThrow();
     expect(append([], { at: "x", actor: "system", name: "x", action: "x" })[0].seq).toBe(1);
   });

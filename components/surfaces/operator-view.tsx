@@ -25,12 +25,13 @@ export function OperatorView({ world, canAdvance, onAdvance }: { world: World; c
       concept: "Unofficial concept. Synthetic data.",
       visit: "V-1021",
       state: rules.name,
-      evv: { status: world.evv, clockIn: world.clockIn, clockOut: world.clockOut ?? null, correction: c ?? null, awayFromHome: world.community ?? null },
-      documentation: { status: world.doc, attestedAt: world.attestedAt ?? null, note: world.draft.map((l) => ({ text: l.text, sources: l.sources, editedByCaregiver: !!l.editedByCaregiver })) },
-      clinicianReview: world.flag ?? null,
+      evv: { status: world.evv, clockIn: world.clockIn, clockOut: world.clockOut ?? null, correction: c ?? null },
+      // Minimum necessary: operations exports status and signatures, not clinical text.
+      documentation: { status: world.doc, attestedAt: world.attestedAt ?? null, signedBy: world.attestedAt ? "Rosa (caregiver)" : null, lineCount: world.draft.length },
+      clinicianReview: world.flag ? { status: world.flag.open ? "open" : "closed", closedAt: world.flag.at ?? null } : null,
       careVerified: careVerified(world),
       claimReady: claimReady(world),
-      audit: world.audit,
+      audit: world.audit.map((e) => (e.clinical ? { seq: e.seq, at: e.at, actor: e.actor, name: e.name, action: e.action, code: e.code, clinical: true } : e)),
     };
     const url = URL.createObjectURL(new Blob([JSON.stringify(packet, null, 2)], { type: "application/json" }));
     const a = document.createElement("a");
@@ -46,7 +47,7 @@ export function OperatorView({ world, canAdvance, onAdvance }: { world: World; c
         <div>
           <p className="font-semibold">Sam Lee, care operations</p>
           <p className="text-[13px] text-muted">
-            Visit V-1021 · Mateo R. · Tue Oct 20 · rules: {rules.name} (illustrative)
+            Visit V-1021 · Mateo R. · Tue Oct 20 · rules: {rules.name} (illustrative){world.day === "wed" ? " · today: Wed Oct 21" : ""}
           </p>
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -75,7 +76,7 @@ export function OperatorView({ world, canAdvance, onAdvance }: { world: World; c
                 ["Member", "Mateo R."],
                 ["Caregiver", "Rosa R. (mother; legal guardian)"],
                 ["Date", world.inpatient ? "Thu Oct 22" : "Tue Oct 20"],
-                ["Location", world.inpatient ? "Not captured (cancelled)" : world.community ? `Captured at home; away 3:40 pm (${world.community.code})` : "Captured at home"],
+                ["Location", world.inpatient ? "Not captured (cancelled)" : c?.approvedById ? "Captured at home (clock-in); clock-out by approved fix" : world.clockIn ? "Captured at home (clock-in)" : "–"],
                 ["Start / end", world.inpatient ? "Cancelled: member inpatient" : `${world.clockIn ?? "–"} / ${world.clockOut ?? (world.evv === "clocked_in" ? "in progress" : world.evv === "scheduled" ? "–" : "not recorded")}`],
               ].map(([k, v]) => (
                 <div key={k} className="bg-white px-3 py-2.5">
@@ -84,7 +85,9 @@ export function OperatorView({ world, canAdvance, onAdvance }: { world: World; c
                 </div>
               ))}
             </dl>
-            <p className="mt-1.5 text-[12px] text-muted">Verification can&apos;t come from Rosa herself: she&apos;s both the caregiver and Mateo&apos;s guardian, so it rests on EVV capture and clinician oversight.</p>
+            <p className="mt-1.5 text-[12px] leading-4 text-muted">
+              Rosa is both caregiver and guardian, so she can&apos;t verify her own visit. Verification rests on device capture, a second person reviewing any fix, and clinician oversight.
+            </p>
           </section>
 
           {c && (
@@ -98,7 +101,7 @@ export function OperatorView({ world, canAdvance, onAdvance }: { world: World; c
                   <p className="mt-0.5 font-medium">Clock-out: none</p>
                   <p className="text-[13px] text-muted">Device offline from about 7:20 pm</p>
                 </div>
-                <div className={`rounded-[12px] border p-3 ${c.approvedBy ? "border-ok bg-ok-bg" : "border-gold bg-yellow"}`}>
+                <div className={`rounded-[12px] border p-3 ${c.approvedById ? "border-ok bg-ok-bg" : "border-gold bg-yellow"}`}>
                   <p className="text-[12px] text-muted">Requested by Rosa · Tue 8:12 pm</p>
                   <p className="mt-0.5 font-medium">Clock-out: {c.to}</p>
                   <p className="text-[13px]">
@@ -107,6 +110,13 @@ export function OperatorView({ world, canAdvance, onAdvance }: { world: World; c
                   <p className="text-[13px] text-muted">In her words: “{c.reason}”</p>
                 </div>
               </div>
+              {world.evv === "correction_requested" && (
+                <div className="mt-3 rounded-[12px] bg-soft p-3 text-[13px] leading-5">
+                  <p className="font-semibold">Evidence to check</p>
+                  <p>Last app activity 7:18 pm, at home · scheduled end 8:00 pm · requested 7:30 pm is 12 min after last activity.</p>
+                  <p className="text-muted">Self-reported times more than 30 min after last device activity need a second reviewer (illustrative).</p>
+                </div>
+              )}
               {world.evv === "correction_requested" && (
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   {canAdvance && (
@@ -117,10 +127,10 @@ export function OperatorView({ world, canAdvance, onAdvance }: { world: World; c
                   <button type="button" className={btn("outline")} disabled title="Illustrative">
                     Ask Rosa for more detail
                   </button>
-                  <p className="w-full text-[13px] text-muted">You can&apos;t approve corrections you asked for, and clinicians can&apos;t approve time fixes.</p>
+                  <p className="w-full text-[13px] text-muted">You can&apos;t approve a correction you requested. Clinicians can&apos;t approve time fixes.</p>
                 </div>
               )}
-              {c.approvedBy && <p className="mt-2 text-[13px] text-ok-ink">Approved by Sam · Wed 9:05 am · stored beside the original</p>}
+              {c.approvedById && <p className="mt-2 text-[13px] text-ok-ink">Approved by Sam · Wed 9:05 am · stored beside the original</p>}
             </section>
           )}
 
@@ -135,7 +145,7 @@ export function OperatorView({ world, canAdvance, onAdvance }: { world: World; c
                 </button>
               </div>
               <div className="mt-3">
-                <AuditTimeline entries={world.audit} />
+                <AuditTimeline entries={world.audit} viewer="operator" />
               </div>
               <h3 className="mt-5 font-semibold">Who opened this record</h3>
               <ul className="mt-2 space-y-1 text-[13px]">
@@ -150,12 +160,11 @@ export function OperatorView({ world, canAdvance, onAdvance }: { world: World; c
 
         <div className="space-y-3">
           <BlockerChecklist blockers={world.inpatient ? blockers.map((b) => (b.id === "inpatient" ? { ...b, ok: false, detail: "Member inpatient on this date" } : b)) : blockers} />
-          <p className="text-[12px] leading-4 text-muted">
-            Only operations sees billing readiness. Rosa sees whether her hours count for payroll; Dana sees whether care is verified. Caregiver pay never waits on a claim.
-          </p>
+          <p className="text-[12px] leading-4 text-muted">Billing readiness is operations-only. Caregiver pay never waits on a claim.</p>
           <div className="rounded-[12px] bg-soft p-3 text-[13px] leading-5">
             <p className="font-semibold">{rules.name} rules in effect</p>
-            <p>Late after {rules.graceMinutes} min · fix window {rules.correctionWindowDays} days · live-in exempt: {rules.liveInExempt ? "yes" : "no"}</p>
+            <p>Late after {rules.graceMinutes} min · fix window {rules.correctionWindowDays} days</p>
+            <p>Live-in exemption: {rules.liveInExempt ? `available in ${rules.code}` : "not available"} (illustrative) · not applied; EVV is captured on every visit (assumed)</p>
             <p className="text-muted">{rules.aggregator}</p>
           </div>
         </div>

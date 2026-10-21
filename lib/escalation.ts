@@ -1,20 +1,24 @@
 /*
- * Escalation runs before, and independently of, any AI. It compares what the
- * caregiver reported against the child's own seizure action plan, written by
- * his care team. Thresholds here are illustrative, not clinical guidance.
+ * Escalation runs on the caregiver's taps, at the moment she logs a seizure,
+ * on the phone, with no AI involved. It compares the report against the
+ * child's own seizure action plan. Thresholds here are illustrative; a real
+ * plan comes from his neurologist.
  */
 
 export type SeizureReport = {
+  /** Seizures so far today, including this one. */
   count: number;
+  /** Length of this seizure, in minutes. */
+  minutes: number;
+  /** Longest today, in minutes. */
   longestMinutes: number;
-  breathingTrouble: boolean;
-  backToBaseline: boolean;
+  breathingOk: boolean;
+  backToUsual: boolean;
+  rescueGiven: boolean;
 };
 
 export type ActionPlan = {
-  /** Usual seizures per day for this child. */
   usualMax: number;
-  /** Usual longest seizure, in minutes. */
   usualLongest: number;
   /** Call 911 at or above this length (minutes). */
   emergencyMinutes: number;
@@ -22,24 +26,55 @@ export type ActionPlan = {
 
 export const MATEO_PLAN: ActionPlan = { usualMax: 1, usualLongest: 1, emergencyMinutes: 5 };
 
-export type Triage =
-  | { level: "emergency"; title: string; reasons: string[] }
-  | { level: "nurse"; title: string; reasons: string[] }
-  | { level: "log"; title: string; reasons: string[] };
+export type ReasonId = "long" | "breathing" | "not_back" | "rescue" | "count" | "longest" | "within";
+export type Reason = { id: ReasonId; n?: number; usual?: number };
+
+export type Triage = { level: "emergency" | "nurse" | "log"; reasons: Reason[] };
 
 export function triage(r: SeizureReport, plan: ActionPlan = MATEO_PLAN): Triage {
-  const emergency: string[] = [];
-  if (r.longestMinutes >= plan.emergencyMinutes) emergency.push(`A seizure lasted ${r.longestMinutes} minutes or more`);
-  if (r.breathingTrouble) emergency.push("Trouble breathing");
-  if (!r.backToBaseline) emergency.push("He isn't back to his usual self");
-  if (emergency.length) return { level: "emergency", title: "Call 911 now", reasons: emergency };
+  const emergency: Reason[] = [];
+  if (r.minutes >= plan.emergencyMinutes) emergency.push({ id: "long", n: plan.emergencyMinutes });
+  if (!r.breathingOk) emergency.push({ id: "breathing" });
+  if (!r.backToUsual) emergency.push({ id: "not_back" });
+  if (emergency.length) return { level: "emergency", reasons: emergency };
 
-  const nurse: string[] = [];
-  if (r.count > plan.usualMax) nurse.push(`${r.count} seizures today; he usually has ${plan.usualMax === 1 ? "0 to 1" : `up to ${plan.usualMax}`}`);
-  if (r.longestMinutes > plan.usualLongest) nurse.push(`The longest was about ${r.longestMinutes} minutes; usually under ${plan.usualLongest}`);
-  if (nurse.length) return { level: "nurse", title: "Call the on-call nurse", reasons: nurse };
+  const nurse: Reason[] = [];
+  if (r.rescueGiven) nurse.push({ id: "rescue" });
+  if (r.count > plan.usualMax) nurse.push({ id: "count", n: r.count, usual: plan.usualMax });
+  if (r.longestMinutes > plan.usualLongest) nurse.push({ id: "longest", n: r.longestMinutes, usual: plan.usualLongest });
+  if (nurse.length) return { level: "nurse", reasons: nurse };
 
-  return { level: "log", title: "Within his usual pattern", reasons: ["Add it to today's note"] };
+  return { level: "log", reasons: [{ id: "within" }] };
 }
 
-export const ROSA_REPORT: SeizureReport = { count: 3, longestMinutes: 4, breathingTrouble: false, backToBaseline: true };
+/** What Rosa taps at 3:14 pm: the third seizure today, about 4 minutes. */
+export const ROSA_REPORT: SeizureReport = { count: 3, minutes: 4, longestMinutes: 4, breathingOk: true, backToUsual: true, rescueGiven: false };
+
+export function reasonText(r: Reason, lang: "en" | "es"): string {
+  const es = lang === "es";
+  switch (r.id) {
+    case "long":
+      return es ? `Una convulsión de ${r.n} minutos o más` : `A seizure of ${r.n} minutes or longer`;
+    case "breathing":
+      return es ? "Le cuesta respirar" : "Trouble breathing";
+    case "not_back":
+      return es ? "No vuelve a estar como siempre" : "Not back to his usual self";
+    case "rescue":
+      return es ? "Se le dio la medicina de rescate" : "Rescue medicine was given";
+    case "count":
+      return es ? `${r.n} convulsiones hoy. Normalmente tiene de 0 a ${r.usual}.` : `${r.n} seizures today. He usually has 0 to ${r.usual}.`;
+    case "longest":
+      return es
+        ? `La más larga fue de unos ${r.n} minutos. Normalmente menos de ${r.usual} minuto${r.usual === 1 ? "" : "s"}.`
+        : `The longest was about ${r.n} minutes. Usually under ${r.usual} minute${r.usual === 1 ? "" : "s"}.`;
+    case "within":
+      return es ? "Dentro de su patrón de siempre" : "Within his usual pattern";
+  }
+}
+
+export function triageTitle(t: Triage, lang: "en" | "es") {
+  const es = lang === "es";
+  if (t.level === "emergency") return es ? "Llama al 911 ahora" : "Call 911 now";
+  if (t.level === "nurse") return es ? "Llama a la enfermera de guardia" : "Call the on-call nurse";
+  return es ? "Anótalo en la nota de hoy" : "Add it to today's note";
+}

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-for (const path of ["/", "/visit?step=9", "/visit?step=11&view=operator", "/system", "/notes"]) {
+for (const path of ["/", "/visit?step=9", "/visit?step=12&view=operator", "/system", "/notes"]) {
   test(`no horizontal scroll on ${path}`, async ({ page }) => {
     await page.goto(path);
     await expect(page.locator("h1")).toBeVisible();
