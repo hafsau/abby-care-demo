@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+/*
+ * Abby Care tokens, read from abbycare.org computed styles and :root
+ * variables (Webflow), October 2026:
+ *  - Navy #081D4C for text, dark buttons and the footer. Deep blue #011E4F.
+ *  - Pale blue #C2E4F2, cream #F9F8EF, yellow #FFF4B3, deep yellow #F4BA00,
+ *    light orange #FCD39C. Dividers #D9D9D9. No gradients, no shadows.
+ *  - Headings: STIX Two Text 400, line-height 1, -0.02em. Body and UI: Inter.
+ *  - Buttons: pills, Inter 500 14px, 38px tall; light (#C2E4F2) or navy.
+ *  - Cards: 30px radius, 40px padding. Icons: 2px stroke in a 20% yellow circle.
+ *
+ * Adapted for dense product UI (see /system, "Tokens"):
+ *  - Product success #2F8F4E is 4.07:1 on white, so solid success uses
+ *    #257A41 (5.33:1) and tinted chips use #1F6B39 on #E3F2E8 (5.63:1).
+ *  - #D9D9D9 stays for dividers but fails 3:1 for controls; input and
+ *    control borders use #8A93A3 (3.1:1).
+ *  - App panels use 20px corners and 12px for dense rows; 30px is kept for
+ *    the marketing-scale cards on the overview.
+ */
+:root {
+  --navy: #081d4c;
+  --deep: #011e4f;
+  --blue: #c2e4f2;
+  --blue-soft: #e7f3f9;
+  --cream: #f9f8ef;
+  --yellow: #fff4b3;
+  --gold: #f4ba00;
+  --orange: #fcd39c;
+  --line: #d9d9d9;
+  --control: #8a93a3;
+  --muted: #4a5565;
+  --soft: #f3f4f6;
+
+  --ok: #257a41;
+  --ok-ink: #1f6b39;
+  --ok-bg: #e3f2e8;
+  --danger: #c8353f;
+  --danger-ink: #a32a33;
+  --danger-bg: #fbe9ea;
+}
+
+@theme inline {
+  --color-navy: var(--navy);
+  --color-deep: var(--deep);
+  --color-blue: var(--blue);
+  --color-blue-soft: var(--blue-soft);
+  --color-cream: var(--cream);
+  --color-yellow: var(--yellow);
+  --color-gold: var(--gold);
+  --color-orange: var(--orange);
+  --color-line: var(--line);
+  --color-control: var(--control);
+  --color-muted: var(--muted);
+  --color-soft: var(--soft);
+  --color-ok: var(--ok);
+  --color-ok-ink: var(--ok-ink);
+  --color-ok-bg: var(--ok-bg);
+  --color-danger: var(--danger);
+  --color-danger-ink: var(--danger-ink);
+  --color-danger-bg: var(--danger-bg);
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-serif: var(--font-stix), Georgia, serif;
+}
+
+html {
+  background: #fff;
+}
+
+body {
+  background: #fff;
+  color: var(--navy);
+}
+
+.display {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.eyebrow {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.link {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* abbycare.org's button hover. */
+.lift {
+  transition: transform 0.2s ease;
+}
+.lift:hover:not(:disabled) {
+  transform: scale(1.05);
+}
+
+@keyframes pulse-dot {
+  50% { opacity: 0.35; }
+}
+.pulse {
+  animation: pulse-dot 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lift, .lift:hover { transform: none; transition: none; }
+  .pulse { animation: none; }
+}
